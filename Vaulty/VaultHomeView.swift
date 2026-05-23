@@ -22,12 +22,7 @@ struct VaultHomeView: View {
     @State private var recentlyImportedAssetIds: [String] = []
     @State private var showDeleteOriginalsConfirmation = false
     @State private var showFavoritesOnly = false
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 3),
-        GridItem(.flexible(), spacing: 3),
-        GridItem(.flexible(), spacing: 3)
-    ]
+    @State private var showSettings = false
 
     private var filteredPhotos: [VaultPhoto] {
         photos.filter { photo in
@@ -44,64 +39,68 @@ struct VaultHomeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if photos.isEmpty {
-                    ContentUnavailableView(
-                        "No Photos",
-                        systemImage: "photo.badge.plus",
-                        description: Text("Import photos to store them privately in Vaulty.")
-                    )
-                } else {
-                    ScrollView {
-                        VStack(spacing: 14) {
-                            VaultGalleryControls(
-                                searchText: $searchText,
-                                showFavoritesOnly: $showFavoritesOnly,
-                                photoCount: filteredPhotos.count
-                            )
-                            .padding(.horizontal)
-                            .padding(.top, 8)
+            VStack(spacing: 0) {
+                VaultHeader(
+                    selectedItems: $selectedItems,
+                    showSettings: $showSettings,
+                    isImporting: isImporting
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
 
-                            if filteredPhotos.isEmpty {
-                                ContentUnavailableView(
-                                    "No Matching Photos",
-                                    systemImage: "photo.on.rectangle",
-                                    description: Text("Try a different search or switch back to all photos.")
-                                )
-                                .padding(.top, 72)
-                            } else {
-                                LazyVGrid(columns: columns, spacing: 3) {
-                                    ForEach(filteredPhotos) { photo in
-                                        NavigationLink {
-                                            VaultPhotoDetailView(photo: photo)
-                                        } label: {
-                                            VaultPhotoTile(photo: photo)
+                Group {
+                    if photos.isEmpty {
+                        VaultEmptyState()
+                    } else {
+                        GeometryReader { proxy in
+                            let spacing: CGFloat = 2
+                            let tileSize = floor((proxy.size.width - spacing * 2) / 3)
+                            let columns = Array(
+                                repeating: GridItem(.fixed(tileSize), spacing: spacing),
+                                count: 3
+                            )
+
+                            ScrollView {
+                                VStack(spacing: 12) {
+                                    VaultGalleryControls(
+                                        searchText: $searchText,
+                                        showFavoritesOnly: $showFavoritesOnly,
+                                        photoCount: filteredPhotos.count
+                                    )
+                                    .padding(.horizontal)
+
+                                    if filteredPhotos.isEmpty {
+                                        ContentUnavailableView(
+                                            "No Matching Photos",
+                                            systemImage: "photo.on.rectangle",
+                                            description: Text("Try a different search or switch back to all photos.")
+                                        )
+                                        .padding(.top, 72)
+                                    } else {
+                                        LazyVGrid(columns: columns, spacing: spacing) {
+                                            ForEach(filteredPhotos) { photo in
+                                                NavigationLink {
+                                                    VaultPhotoDetailView(photo: photo)
+                                                } label: {
+                                                    VaultPhotoTile(photo: photo, size: tileSize)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
                                         }
-                                        .buttonStyle(.plain)
+                                        .frame(maxWidth: .infinity)
                                     }
                                 }
-                                .padding(.horizontal, 3)
                             }
                         }
                     }
-                    .background(Color(.systemBackground))
                 }
             }
-            .navigationTitle("Vaulty")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    PhotosPicker(
-                        selection: $selectedItems,
-                        maxSelectionCount: 50,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label("Import", systemImage: "plus")
-                    }
-                    .disabled(isImporting)
-                }
+            .background(VaultTheme.background.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+            .tint(VaultTheme.accent)
+            .sheet(isPresented: $showSettings) {
+                VaultSettingsView()
             }
             .safeAreaInset(edge: .bottom) {
                 if isImporting {
@@ -220,90 +219,160 @@ struct VaultHomeView: View {
     }
 }
 
+struct VaultHeader: View {
+    @Binding var selectedItems: [PhotosPickerItem]
+    @Binding var showSettings: Bool
+    let isImporting: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Vaulty")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(VaultTheme.primaryText)
+
+            Spacer()
+
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .foregroundStyle(VaultTheme.secondaryText)
+                    .background(VaultTheme.elevatedBackground, in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(VaultTheme.border.opacity(0.8), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+
+            PhotosPicker(
+                selection: $selectedItems,
+                maxSelectionCount: 50,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .foregroundStyle(.white)
+                    .background(VaultTheme.accent, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isImporting)
+        }
+        .frame(height: 44)
+    }
+}
+
+struct VaultEmptyState: View {
+    var body: some View {
+        VStack(spacing: 22) {
+            ZStack {
+                Circle()
+                    .fill(VaultTheme.accentGradient)
+                    .frame(width: 96, height: 96)
+                    .shadow(color: VaultTheme.accent.opacity(0.24), radius: 20, y: 12)
+
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(spacing: 8) {
+                Text("No Photos Yet")
+                    .font(.title2.bold())
+                    .foregroundStyle(VaultTheme.primaryText)
+
+                Text("Import photos to store them privately in Vaulty.")
+                    .font(.body)
+                    .foregroundStyle(VaultTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 36)
+        .background(VaultTheme.backgroundGradient.ignoresSafeArea())
+    }
+}
+
 struct VaultGalleryControls: View {
     @Binding var searchText: String
     @Binding var showFavoritesOnly: Bool
     let photoCount: Int
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
+        HStack(spacing: 10) {
+            HStack(spacing: 9) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VaultTheme.secondaryText)
 
                 TextField("Search notes or details", text: $searchText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .foregroundStyle(VaultTheme.primaryText)
 
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(VaultTheme.secondaryText)
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 12)
-            .frame(height: 44)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            HStack {
-                Picker("Filter", selection: $showFavoritesOnly) {
-                    Text("All").tag(false)
-                    Text("Favorites").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 220)
-
-                Spacer()
-
-                Text("\(photoCount) \(photoCount == 1 ? "photo" : "photos")")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+            .frame(height: 40)
+            .background(VaultTheme.elevatedBackground.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(VaultTheme.border.opacity(0.72), lineWidth: 1)
             }
+
+            Button {
+                showFavoritesOnly.toggle()
+            } label: {
+                Image(systemName: showFavoritesOnly ? "star.fill" : "star")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 40, height: 40)
+                    .foregroundStyle(showFavoritesOnly ? .yellow : VaultTheme.secondaryText)
+                    .background(VaultTheme.elevatedBackground.opacity(0.82), in: Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(VaultTheme.border.opacity(0.72), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
         }
     }
 }
 
 struct VaultPhotoTile: View {
     let photo: VaultPhoto
+    let size: CGFloat
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VaultLocalImageView(photo: photo, contentMode: .fit)
-                .padding(4)
+            VaultLocalImageView(photo: photo, contentMode: .fill)
+                .frame(width: size, height: size)
+                .clipped()
 
             if photo.isFavorite {
                 Image(systemName: "star.fill")
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(.yellow)
-                    .padding(7)
-                    .background(.black.opacity(0.55), in: Circle())
                     .padding(6)
+                    .background(.black.opacity(0.48), in: Circle())
+                    .padding(5)
             }
         }
-        .aspectRatio(1, contentMode: .fit)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(.separator).opacity(0.25), lineWidth: 0.5)
-        }
-        .overlay(alignment: .bottomLeading) {
-            if let capturedAt = photo.capturedAt {
-                Text(capturedAt, format: .dateTime.month(.abbreviated).day().year())
-                    .font(.caption2.weight(.semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.52), in: Capsule())
-                    .padding(6)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(width: size, height: size)
+        .background(VaultTheme.secondaryBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+        .clipped()
+        .contentShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
         .accessibilityLabel(photo.originalFileName)
     }
 }
@@ -316,7 +385,7 @@ struct VaultLocalImageView: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(VaultTheme.secondaryBackground)
 
             if let image {
                 Image(uiImage: image)
@@ -327,9 +396,10 @@ struct VaultLocalImageView: View {
             } else {
                 Image(systemName: "photo")
                     .font(.title2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(VaultTheme.secondaryText)
             }
         }
+        .clipped()
         .task(id: photo.fileName) {
             loadImage()
         }

@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct VaultyApp: App {
+    @AppStorage(VaultTheme.appearanceKey) private var appearanceRawValue = VaultAppearance.system.rawValue
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             VaultPhoto.self,
@@ -26,7 +28,13 @@ struct VaultyApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(selectedAppearance.colorScheme)
+                .tint(VaultTheme.accent)
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    private var selectedAppearance: VaultAppearance {
+        VaultAppearance(rawValue: appearanceRawValue) ?? .system
     }
 }

@@ -22,6 +22,7 @@ struct VaultPhotoDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 320)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(VaultTheme.elevatedBackground)
                     .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             }
 
@@ -72,8 +73,11 @@ struct VaultPhotoDetailView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(VaultTheme.background.ignoresSafeArea())
         .navigationTitle("Photo Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(VaultTheme.background, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
