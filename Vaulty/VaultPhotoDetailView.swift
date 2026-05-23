@@ -18,10 +18,9 @@ struct VaultPhotoDetailView: View {
     var body: some View {
         List {
             Section {
-                VaultLocalImageView(photo: photo)
-                    .scaledToFit()
+                VaultLocalImageView(photo: photo, contentMode: .fit)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 260)
+                    .frame(height: 320)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
             }

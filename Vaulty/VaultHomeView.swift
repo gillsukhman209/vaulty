@@ -24,7 +24,9 @@ struct VaultHomeView: View {
     @State private var showFavoritesOnly = false
 
     private let columns = [
-        GridItem(.adaptive(minimum: 108, maximum: 160), spacing: 14)
+        GridItem(.flexible(), spacing: 3),
+        GridItem(.flexible(), spacing: 3),
+        GridItem(.flexible(), spacing: 3)
     ]
 
     private var filteredPhotos: [VaultPhoto] {
@@ -49,36 +51,46 @@ struct VaultHomeView: View {
                         systemImage: "photo.badge.plus",
                         description: Text("Import photos to store them privately in Vaulty.")
                     )
-                } else if filteredPhotos.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 14) {
-                            ForEach(filteredPhotos) { photo in
-                                NavigationLink {
-                                    VaultPhotoDetailView(photo: photo)
-                                } label: {
-                                    VaultPhotoTile(photo: photo)
+                        VStack(spacing: 14) {
+                            VaultGalleryControls(
+                                searchText: $searchText,
+                                showFavoritesOnly: $showFavoritesOnly,
+                                photoCount: filteredPhotos.count
+                            )
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+
+                            if filteredPhotos.isEmpty {
+                                ContentUnavailableView(
+                                    "No Matching Photos",
+                                    systemImage: "photo.on.rectangle",
+                                    description: Text("Try a different search or switch back to all photos.")
+                                )
+                                .padding(.top, 72)
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 3) {
+                                    ForEach(filteredPhotos) { photo in
+                                        NavigationLink {
+                                            VaultPhotoDetailView(photo: photo)
+                                        } label: {
+                                            VaultPhotoTile(photo: photo)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.horizontal, 3)
                             }
                         }
-                        .padding()
                     }
+                    .background(Color(.systemBackground))
                 }
             }
             .navigationTitle("Vaulty")
-            .searchable(text: $searchText, prompt: "Search notes or details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showFavoritesOnly.toggle()
-                    } label: {
-                        Label("Favorites", systemImage: showFavoritesOnly ? "star.fill" : "star")
-                    }
-                    .tint(showFavoritesOnly ? .yellow : nil)
-                }
-
                 ToolbarItem(placement: .topBarTrailing) {
                     PhotosPicker(
                         selection: $selectedItems,
@@ -208,15 +220,60 @@ struct VaultHomeView: View {
     }
 }
 
+struct VaultGalleryControls: View {
+    @Binding var searchText: String
+    @Binding var showFavoritesOnly: Bool
+    let photoCount: Int
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+
+                TextField("Search notes or details", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 44)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            HStack {
+                Picker("Filter", selection: $showFavoritesOnly) {
+                    Text("All").tag(false)
+                    Text("Favorites").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 220)
+
+                Spacer()
+
+                Text("\(photoCount) \(photoCount == 1 ? "photo" : "photos")")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 struct VaultPhotoTile: View {
     let photo: VaultPhoto
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VaultLocalImageView(photo: photo)
-                .aspectRatio(1, contentMode: .fill)
-                .frame(minHeight: 108)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VaultLocalImageView(photo: photo, contentMode: .fit)
+                .padding(4)
 
             if photo.isFavorite {
                 Image(systemName: "star.fill")
@@ -226,6 +283,13 @@ struct VaultPhotoTile: View {
                     .background(.black.opacity(0.55), in: Circle())
                     .padding(6)
             }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(.separator).opacity(0.25), lineWidth: 0.5)
         }
         .overlay(alignment: .bottomLeading) {
             if let capturedAt = photo.capturedAt {
@@ -246,23 +310,24 @@ struct VaultPhotoTile: View {
 
 struct VaultLocalImageView: View {
     let photo: VaultPhoto
+    var contentMode: ContentMode = .fill
     @State private var image: UIImage?
 
     var body: some View {
-        Group {
+        ZStack {
+            Rectangle()
+                .fill(Color(.secondarySystemGroupedBackground))
+
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             } else {
-                ZStack {
-                    Rectangle()
-                        .fill(Color(.secondarySystemGroupedBackground))
-
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
             }
         }
         .task(id: photo.fileName) {
