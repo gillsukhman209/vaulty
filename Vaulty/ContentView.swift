@@ -5,57 +5,85 @@
 //  Created by Sukhman Singh on 5/23/26.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var authentication = AuthenticationController()
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
+        Group {
+            if authentication.isUnlocked {
+                VaultHomeView()
+                    .transition(.opacity)
+            } else {
+                VaultLockView(authentication: authentication)
+                    .transition(.opacity)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+        .animation(.easeInOut(duration: 0.2), value: authentication.isUnlocked)
+        .task {
+            await authentication.authenticate()
         }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+        .onChange(of: scenePhase) { _, phase in
+            authentication.handleScenePhase(phase)
         }
     }
 }
 
-#Preview {
+struct VaultLockView: View {
+    let authentication: AuthenticationController
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 72, weight: .semibold))
+                .foregroundStyle(.tint)
+
+            VStack(spacing: 8) {
+                Text("Vaulty")
+                    .font(.largeTitle.bold())
+
+                Text("Unlock with \(authentication.biometricName) or your device passcode.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+            }
+
+            Button {
+                Task { await authentication.authenticate() }
+            } label: {
+                Label(authentication.isAuthenticating ? "Unlocking" : "Unlock Vault", systemImage: "faceid")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 32)
+            .disabled(authentication.isAuthenticating)
+
+            if let message = authentication.lastErrorMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+
+            Spacer()
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+}
+
+#Preview("Locked") {
+    VaultLockView(authentication: AuthenticationController())
+}
+
+#Preview("App") {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: VaultPhoto.self, inMemory: true)
 }
